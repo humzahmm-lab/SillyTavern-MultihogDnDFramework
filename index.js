@@ -8224,6 +8224,10 @@ function organizeConnectionSettingsUI() {
                 });
             });
         }
+        // syncSettingsUi() reads settings controls declared later in this block; calling it
+        // here hits their temporal dead zone and aborts the rest of the settings UI build.
+        // Defer the boot sync until the settings UI has been wired up.
+        let pendingBootSettingsUiSync = false;
         if (bootChatId && settings.chatLinkEnabled) {
             // ST and other extensions queue whole-settings saves before settingsReady.
             // Never expose an empty transient projection during that window. If the
@@ -8236,10 +8240,7 @@ function organizeConnectionSettingsUI() {
                 saveChatState(bootChatId, { skipDiskWrite: true });
                 console.warn('[RPG Tracker] Preserved live tracker state for an unsafe boot partition:', bootChatId);
             }
-            if (settings.chatSetupLinkEnabled) {
-                syncSettingsUi();
-                syncAllNarratorTogglesForUnlockState();
-            }
+            if (settings.chatSetupLinkEnabled) pendingBootSettingsUiSync = true;
             // loadChatState can reintroduce tombstoned tags from a stale partition — strip again.
             applyDeletedCustomTagTombstones();
         }
@@ -12985,6 +12986,10 @@ RULES:
             updateCyoaStyle();
         }
         globalThis._rpgSyncSettingsUi = syncSettingsUi;
+        if (pendingBootSettingsUiSync) {
+            syncSettingsUi();
+            syncAllNarratorTogglesForUnlockState();
+        }
 
     } catch (e) {
         console.error("[RPG Tracker] Failed to build settings UI", e);
