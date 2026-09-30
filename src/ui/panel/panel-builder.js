@@ -4090,6 +4090,35 @@ export function createPanel(dependencies) {
         };
 
         /**
+         * Hosts that lazy-load characters (TauriTavern, or SillyTavern with
+         * lazyLoadCharacters) return shallow cards from /api/characters/all: name and
+         * avatar only. Fetch the full card before reading its text.
+         * @param {object} charCard - Entry from the NPC Creator character list (mutated in place)
+         * @returns {Promise<boolean>} True when the card has description or personality text
+         */
+        const hydrateCharCard = async (charCard) => {
+            if (!charCard.description && !charCard.personality && charCard.avatar) {
+                try {
+                    const res = await fetch('/api/characters/get', {
+                        method: 'POST', headers: getRequestHeaders(),
+                        body: JSON.stringify({ avatar_url: charCard.avatar }),
+                    });
+                    if (res.ok) {
+                        const full = await res.json();
+                        const data = full?.data || {};
+                        charCard.description = full?.description || data.description || '';
+                        charCard.personality = full?.personality || data.personality || '';
+                        charCard.scenario = full?.scenario || data.scenario || '';
+                        charCard.first_mes = full?.first_mes || data.first_mes || '';
+                    }
+                } catch (err) {
+                    console.warn('[RPG Tracker] Could not load full character card:', charCard.avatar, err);
+                }
+            }
+            return !!(charCard.description || charCard.personality);
+        };
+
+        /**
          * Creates an NPC lorebook entry from a character card.
          * @param {object} charCard - The SillyTavern character card object
          * @param {string} bookName - Target lorebook book name
@@ -4945,6 +4974,10 @@ ${namingRule}`;
                             directBtn.disabled = true;
                             directBtn.textContent = mode === 'ai_review' ? '⏳ Reviewing...' : '⏳ Adding...';
                             try {
+                                if (!chatCommitResult(ownsChat, await hydrateCharCard(char))) {
+                                    toastr['warning'](`"${char.name}" has no description or personality text to import.`, 'NPC Creator');
+                                    return;
+                                }
                                 if (mode === 'ai_review') {
                                     // Minimal AI review pass — fix only world/era impossibilities
                                     const reviewed = chatCommitResult(ownsChat, await minimalReviewNpcWithAI(char));
@@ -4979,6 +5012,10 @@ ${namingRule}`;
                             aiBtn.disabled = true;
                             aiBtn.textContent = '⏳ Adapting...';
                             try {
+                                if (!chatCommitResult(ownsChat, await hydrateCharCard(char))) {
+                                    toastr['warning'](`"${char.name}" has no description or personality text to import.`, 'NPC Creator');
+                                    return;
+                                }
                                 const adapted = chatCommitResult(ownsChat, await adaptNpcWithAI(char));
                                 if (!adapted) { aiBtn.disabled = false; aiBtn.textContent = '🤖 Fit into Story'; return; }
                                 chatCommitResult(ownsChat, await showNpcPreviewAndAdd(adapted, char.name, 'NPC Creator', char.avatar));
