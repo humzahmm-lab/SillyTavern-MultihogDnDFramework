@@ -4,6 +4,7 @@ import { escapeHtml, decodeHtml, highlightParens, highlightNumbers, parseInWorld
 import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE, renderStartingGearTierOptions } from './constants.js';
 import { isResolvedCombatantStatusLine, parseCombatSideHeader } from './src/state/combat-persistence.js';
 import { buildDisplayGroupRenderPlan } from './src/features/display-groups.js';
+import { renderSpellChip } from './hp-spells.js';
 
 // ── Renderer module: pure HTML string producers, localStorage helpers ──
 // No live DOM mutations. All functions return strings or void (localStorage).
@@ -574,11 +575,7 @@ export function renderDayNightBadge(str) {
             }
             let spellsHtml = '';
             if (spellList) {
-                spellsHtml = spellList.split(',').map(s => {
-                    const name = s.trim();
-                    const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
-                    return `<a href="https://dnd5e.wikidot.com/spell:${slug}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
-                }).join('');
+                spellsHtml = spellList.split(/,(?![^()\[\]]*[)\]])/).filter(s => s.trim()).map(s => renderSpellChip(s, escapeHtmlWithColor)).join('');
             }
             html += `<div class="rt-spell-row"><span class="rt-spell-level">${escapeHtmlWithColor(lbl.trim())}</span><div class="rt-spell-inline-group"><div class="rt-spell-list">${pipsHtml}${spellsHtml}</div></div></div>`;
         }
@@ -1756,14 +1753,7 @@ function formatValueToCurrency(totalCp, detectedCurrency) {
                         ).join('');
                         pipsHtml = `<span class="rt-slot-pips">${pips}</span>`;
                     }
-                    const spells = spellList.split(',').map(s => {
-                        const name = s.trim();
-                        const slug = name.toLowerCase()
-                            .replace(/'/g, '')
-                            .replace(/[^a-z0-9]+/g, '-');
-                        const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                        return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
-                    }).join('');
+                    const spells = spellList.split(/,(?![^()\[\]]*[)\]])/).filter(s => s.trim()).map(s => renderSpellChip(s, escapeHtmlWithColor)).join('');
                     return `<div class="rt-spell-row">
                         <span class="rt-spell-level">${escapeHtmlWithColor(label.trim())}</span>
                         <div class="rt-spell-inline-group">

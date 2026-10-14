@@ -10928,3 +10928,34 @@ dialog .rt-dungeon-graph-asset-tip,
         }
     }
 }
+
+
+/* ── Spell lore (tap a spell to read what it does) ── */
+.rt-spell-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+.rt-spell-tap.rt-spell-active {
+    background: var(--rt-accent-bg);
+    border-color: var(--rt-accent);
+}
+.rt-spell-row > .rt-spell-info {
+    grid-column: 1 / -1;
+    margin: 4px 0 2px;
+    padding: 7px 9px;
+    border-left: 3px solid var(--rt-accent, #00c88c);
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    font-size: 0.9em;
+    line-height: 1.4;
+    white-space: normal;
+}
+.rt-spell-info-type { opacity: 0.7; font-size: 0.85em; font-style: italic; margin-left: 4px; }
+.rt-spell-info-body { margin-top: 3px; }
+.rt-spell-info-note { margin-top: 4px; opacity: 0.8; font-style: italic; }
+.rt-spell-info-empty { opacity: 0.75; font-style: italic; }
+.rt-spell-info-link { display: inline-block; margin-top: 4px; color: var(--rt-accent, #00c88c); }
+/* phones keep :hover stuck after a tap; only the open spell stays highlighted */
+@media (hover: none) {
+    .rt-spell-tap:not(.rt-spell-active):hover {
+        background: rgba(255,255,255,0.04);
+        border-color: rgba(255,255,255,0.08);
+    }
+}
