@@ -2,6 +2,13 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Relationship values and portraits no longer vanish after switching characters.** A chat's saved relationship values, NPC portraits and location images are never overwritten with an empty snapshot (seen on TauriTavern for Android, where a character switch could reset every NPC to 0 and drop all portraits).
+- **Self-healing on chat load.** Each chat now keeps a mirror of its relationship values and portrait links in its own chat-file metadata. When a chat opens with values or portraits missing, Multihog restores them from that mirror and, for relationships, from the per-message rollback receipts. Existing non-zero values are never changed.
+- **Orphaned data cleanup** no longer fails on hosts that cannot list lorebooks; it skips the optional lorebook purge and still cleans the saved chat records.
+
 ## [2026.9.25] - 2026-09-27
 
 ### Fixed

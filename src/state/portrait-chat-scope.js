@@ -1,3 +1,5 @@
+import { protectPartitionFromBlank } from './chat-self-heal.js';
+
 function clonePortraitMap(map) {
     return map && typeof map === 'object'
         ? JSON.parse(JSON.stringify(map))
@@ -24,12 +26,19 @@ export function portraitWriteMode(liveChatId, passChatId) {
  * Snapshot the live portrait and location-image maps into one chat partition.
  * Portrait ownership is always per-chat, independently of the broader Chat Link toggle.
  */
-export function snapshotPortraitMapsForChat(settings, chatId) {
+export function snapshotPortraitMapsForChat(settings, chatId, opts = {}) {
     if (!settings || !chatId) return false;
     if (!settings.chatStates || typeof settings.chatStates !== 'object') settings.chatStates = {};
     const partition = settings.chatStates[chatId] || {};
+    const previous = {
+        customPortraits: partition.customPortraits,
+        customLocationImages: partition.customLocationImages,
+    };
     partition.customPortraits = clonePortraitMap(settings.customPortraits);
     partition.customLocationImages = clonePortraitMap(settings.customLocationImages);
+    // A transient empty live map must never erase this chat's saved portraits.
+    // Explicit removals (the user cleared the last image) pass allowEmpty.
+    if (!opts.allowEmpty) protectPartitionFromBlank(previous, partition);
     settings.chatStates[chatId] = partition;
     return true;
 }

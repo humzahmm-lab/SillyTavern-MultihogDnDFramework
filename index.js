@@ -18,6 +18,7 @@ import { summarizeMapEvolutionSchedule, stampEvolutionLastFired, evolutionInterv
 import { getRequestHeaders } from '../../../../script.js';
 import { fileToDataUrl, scaleImageTo512Square, scaleImageToLandscape, applyPortraitData, applyLocationImageData, renamePortraitEntity, reconcileMemoPortraitRenames, generatePortraitPrompt, generateNpcPortraitPrompt, generateLocationImagePrompt, showPortraitPromptPopup, generatePortraitDirect, autoGeneratePartyPortraits, removeAllPortraits, checkAndTriggerAutoGenerations, autoGenerateEnemyPortraits, forceCheckAutoGenerations, resetAutoGenerationTracking, resetRealtimeLocationGenerationFailure, stopRealtimeLocationGeneration, resolveLocationImageWithMeta, normalizeLocationPath, buildLocationPath, getLinkedPlayerCharacter, resolvePortraitSrcForPlayerCharacter, imageGenToast, triggerBackgroundPortraitGeneration, fetchHordeModels } from './portraits.js';
 import { buildImmersionSceneState, renderImmersionViewHtml, getCurrentLocationText, loadLocationEntryByPath, loadNpcEntryByKey, maybeAutoGenerateImmersionSceneArt, runRealtimeSceneArtCheck, resetImmersionSceneArtTracking, hydrateImmersionSceneArtPath } from './immersion.js';
+import { healLiveStateFromChat } from './src/state/chat-self-heal.js';
 import { migrateAllEmbeddedPortraits, countEmbeddedPortraitDataUrls, purgeAllPortraitData, resolvePortraitDisplaySrc, lookupCustomPortraitSrc, collectAllPortraitRefs, countPortraitPathRefs, deletePortraitFile, isManagedPortraitPath, isPortraitMigrationLocked, setPortraitMigrationLocked, PORTRAIT_STORAGE_FOLDER, snapshotPortraitMapsForChat, loadPortraitMapsForChat, migrateLegacyPortraitMapsToChat } from './portrait-storage.js';
 import { loadPanelGeometry, loadDeltaHeight, makeDraggable, makeResizableTR, makeResizableBR, makeResizableBL, setupResizeObserver, setupDeltaResize, canResizePanels, jqueryToggleSlide, resolveViewportClampedGeometry, clampFloatingPanelToViewport } from './ui-geometry.js';
 import { applyCustomTheme, openThemeWizard, refreshSavedThemesList, handleRecolor, undoThemeChange } from './theme-manager.js';
@@ -738,10 +739,11 @@ async function cleanOrphanedChatRecords(plannedIds) {
             }
         }
     } catch (error) {
-        // Keep campaignBooks metadata for a retry if the server cannot verify
-        // which lorebooks are still present.
-        console.warn('[RPG Tracker] Orphaned data cleanup stopped before removing saved records:', error);
-        throw error;
+        // Some hosts (e.g. TauriTavern) cannot list or import world info the way
+        // SillyTavern's server does. Skip the optional lorebook purge and still
+        // clean the saved chat records; lorebooks are left untouched.
+        console.warn('[RPG Tracker] Orphaned lorebook check unavailable; cleaning saved chat records only:', error);
+        toastr.warning('Could not check orphaned lorebooks on this host. Lorebooks were left untouched; cleaning saved chat data only.', 'RPG Tracker', { timeOut: 7000 });
     }
 
     existing = await listExistingSillyTavernChatIds();
@@ -2697,6 +2699,38 @@ function syncRouterPrefixDisplays(raw) {
     if (settingsEl) settingsEl.textContent = label;
     const agentEl = document.getElementById('rt-agent-router-prefix-display');
     if (agentEl) agentEl.textContent = label;
+}
+
+/**
+ * After a chat switch settles, restore missing relationship values and portrait
+ * links for the open chat from its own chat-file metadata mirror and the
+ * per-message rollback receipts. Existing non-zero values are never changed.
+ */
+function scheduleChatSelfHeal() {
+    const expectedId = getActiveChatId();
+    if (!expectedId) return;
+    setTimeout(() => {
+        try {
+            const ctx = SillyTavern.getContext();
+            const liveId = ctx.getCurrentChatId?.() || ctx.chatId;
+            if (!liveId || String(liveId) !== String(expectedId) || getActiveChatId() !== expectedId) return;
+            if (isHistoryPersistenceBlocked()) return;
+            const s = getSettings();
+            const result = healLiveStateFromChat(s, ctx);
+            if (!result.relationships && !result.portraits) return;
+            if (s.chatLinkEnabled) saveChatState(expectedId, { skipDiskWrite: true });
+            void saveSettings(true);
+            scheduleAgentManifestRefresh(true);
+            try { refreshRenderedView(); } catch (_) { /* ignore */ }
+            const parts = [];
+            if (result.relationships) parts.push(`${result.relationships} relationship value(s)`);
+            if (result.portraits) parts.push(`${result.portraits} portrait link(s)`);
+            console.warn('[RPG Tracker] Self-heal restored missing chat state:', expectedId, result);
+            toastr['info'](`Restored ${parts.join(' and ')} from this chat's history.`, 'RPG Tracker', { timeOut: 6000 });
+        } catch (error) {
+            console.warn('[RPG Tracker] Chat self-heal failed:', error);
+        }
+    }, 1500);
 }
 
 /**
@@ -8195,6 +8229,10 @@ function organizeConnectionSettingsUI() {
             toastr['info']('Restored the browser-local tracker configuration you selected.', 'RPG Tracker', { timeOut: 6000 });
         }
         eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
+        // Self-heal relationship values / portraits that a host-side switch may have
+        // blanked. Runs after the switch has settled, only for the chat still open.
+        eventSource.on(event_types.CHAT_CHANGED, scheduleChatSelfHeal);
+        scheduleChatSelfHeal();
         const onDeletedChat = async (deletedChatId) => {
             try {
                 const result = await cleanDeletedChatRecords(String(deletedChatId || ''));
