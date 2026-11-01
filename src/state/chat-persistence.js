@@ -9,6 +9,7 @@ import { snapshotStockPromptsForProfile } from './profiles.js';
 import { snapshotChatSetup } from './chat-setup.js';
 import { saveSettings as requestSettingsSave } from '../app/runtime-bridge.js';
 import { isHistoryPersistenceBlocked, persistChatHistories } from './history-file-storage.js';
+import { protectPartitionFromBlank, mirrorPartitionToChatMetadata } from './chat-self-heal.js';
 
 // Kept only so legacy recovery code can be re-enabled deliberately. Normal tracker
 // operation must not create or consume a browser-local recovery copy.
@@ -617,6 +618,23 @@ export function saveChatState(chatId, opts = {}) {
         })(),
     };
     if (!existing.historyStorage) delete s.chatStates[chatId].historyStorage;
+
+    // Never let a transient empty projection wipe this chat's relationship values
+    // or portrait maps. If the live state was blank for the active chat, heal it too.
+    const protectedKeys = protectPartitionFromBlank(existing, s.chatStates[chatId]);
+    if (protectedKeys.length) {
+        console.warn('[RPG Tracker] Kept saved chat data instead of an empty snapshot:', chatId, protectedKeys);
+        if (chatId === getActiveChatId()) {
+            for (const key of protectedKeys) {
+                s[key] = JSON.parse(JSON.stringify(s.chatStates[chatId][key]));
+            }
+        }
+    }
+    try {
+        mirrorPartitionToChatMetadata(SillyTavern.getContext(), chatId, s.chatStates[chatId]);
+    } catch (error) {
+        console.warn('[RPG Tracker] Could not mirror chat state into chat metadata:', error);
+    }
 
     // Sync WAL before the async disk write — survives F5 if /api/settings/save is cancelled.
     writeModuleSchemaBackup(chatId);

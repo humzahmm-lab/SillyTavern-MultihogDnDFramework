@@ -20,6 +20,7 @@ import {
 } from './portrait-storage.js';
 import { buildPortraitStoryContext, portraitStoryLookbackCount } from './src/state/portrait-story-lookback.js';
 import { canCommitPassForChat, createChatCommitGuard, chatCommitResult } from './src/state/pass-affinity.js';
+import { forgetMirroredImageRef } from './src/state/chat-self-heal.js';
 
 /**
  * Portrait/location AI generation toast — info/success can be hidden via settings.
@@ -120,10 +121,11 @@ export async function applyPortraitData(entityName, src, opts = {}) {
 
     if (!src) {
         delete s.customPortraits[normName];
+        try { forgetMirroredImageRef(SillyTavern.getContext(), 'customPortraits', normName); } catch (_) { /* ignore */ }
     } else {
         s.customPortraits[normName] = stored;
     }
-    snapshotPortraitMapsForChat(s, chatId);
+    snapshotPortraitMapsForChat(s, chatId, { allowEmpty: !src });
     if (previous && previous !== s.customPortraits[normName]
         && isManagedPortraitPath(previous) && countPortraitPathRefs(s, previous) === 0) {
         await deletePortraitFile(previous);
@@ -2146,10 +2148,11 @@ export async function applyLocationImageData(locationPath, src, opts = {}) {
 
     if (!src) {
         delete s.customLocationImages[normPath];
+        try { forgetMirroredImageRef(SillyTavern.getContext(), 'customLocationImages', normPath); } catch (_) { /* ignore */ }
     } else {
         s.customLocationImages[normPath] = stored;
     }
-    snapshotPortraitMapsForChat(s, chatId);
+    snapshotPortraitMapsForChat(s, chatId, { allowEmpty: !src });
     if (previous && previous !== s.customLocationImages[normPath]
         && isManagedPortraitPath(previous) && countPortraitPathRefs(s, previous) === 0) {
         await deletePortraitFile(previous);
