@@ -310,3 +310,39 @@ describe('saveChatState', () => {
         expect(s.syspromptSnippetDatabase[0].content).toBe('Custom law');
     });
 });
+
+describe('saveChatState empty-tracker guard', () => {
+    beforeEach(() => {
+        for (const key of Object.keys(testExtensionSettings)) {
+            delete testExtensionSettings[key];
+        }
+    });
+
+    it('does not replace a saved tracker with an unloaded empty one', () => {
+        const s = getSettings();
+        s.currentMemo = '';
+        s.memoHistory = [];
+        s.chatStates = { hog: { currentMemo: '[CHARACTER]\nHumzah\n[/CHARACTER]', memoHistory: ['a', 'b'] } };
+        saveChatState('hog', { skipDiskWrite: true });
+        expect(s.chatStates.hog.currentMemo).toContain('Humzah');
+        expect(s.chatStates.hog.memoHistory).toEqual(['a', 'b']);
+    });
+
+    it('still saves an empty tracker for a chat that never had one', () => {
+        const s = getSettings();
+        s.currentMemo = '';
+        s.memoHistory = [];
+        s.chatStates = {};
+        saveChatState('fresh', { skipDiskWrite: true });
+        expect(s.chatStates.fresh).toBeDefined();
+    });
+
+    it('allows an explicit wipe', () => {
+        const s = getSettings();
+        s.currentMemo = '';
+        s.memoHistory = [];
+        s.chatStates = { hog: { currentMemo: 'old', memoHistory: ['a'] } };
+        saveChatState('hog', { skipDiskWrite: true, allowEmptyMemo: true });
+        expect(s.chatStates.hog.currentMemo).toBe('');
+    });
+});

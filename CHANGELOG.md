@@ -5,6 +5,8 @@ All notable changes to the **Multihog D&D Framework** will be documented in this
 ## [Unreleased]
 
 ### Fixed
+- **Tracker memo is never overwritten by an empty one.** `saveChatState` skips saving when the live tracker is empty but the chat's saved tracker is not (the state has not been projected yet). Explicit "clear tracker" actions still work.
+- **Self-heal no longer runs during startup**, and only runs once the open chat's saved state has been loaded, so it cannot save an unloaded tracker.
 - **Relationship values and portraits no longer vanish after switching characters.** A chat's saved relationship values, NPC portraits and location images are never overwritten with an empty snapshot (seen on TauriTavern for Android, where a character switch could reset every NPC to 0 and drop all portraits).
 - **Self-healing on chat load.** Each chat now keeps a mirror of its relationship values and portrait links in its own chat-file metadata. When a chat opens with values or portraits missing, Multihog restores them from that mirror and, for relationships, from the per-message rollback receipts. Existing non-zero values are never changed.
 - **Orphaned data cleanup** no longer fails on hosts that cannot list lorebooks; it skips the optional lorebook purge and still cleans the saved chat records.
