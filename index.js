@@ -2715,10 +2715,14 @@ function scheduleChatSelfHeal() {
             const liveId = ctx.getCurrentChatId?.() || ctx.chatId;
             if (!liveId || String(liveId) !== String(expectedId) || getActiveChatId() !== expectedId) return;
             if (isHistoryPersistenceBlocked()) return;
+            // Only heal once this chat's saved state has actually been projected.
+            // Saving before that would snapshot an unloaded (empty) tracker over it.
+            if (!_startupChatProjectionReady || runtimeState.currentChatId !== expectedId) return;
             const s = getSettings();
+            const saved = s.chatStates?.[expectedId];
+            if (String(saved?.currentMemo || '').trim() && !String(s.currentMemo || '').trim()) return;
             const result = healLiveStateFromChat(s, ctx);
             if (!result.relationships && !result.portraits) return;
-            if (s.chatLinkEnabled) saveChatState(expectedId, { skipDiskWrite: true });
             void saveSettings(true);
             scheduleAgentManifestRefresh(true);
             try { refreshRenderedView(); } catch (_) { /* ignore */ }
@@ -8232,7 +8236,6 @@ function organizeConnectionSettingsUI() {
         // Self-heal relationship values / portraits that a host-side switch may have
         // blanked. Runs after the switch has settled, only for the chat still open.
         eventSource.on(event_types.CHAT_CHANGED, scheduleChatSelfHeal);
-        scheduleChatSelfHeal();
         const onDeletedChat = async (deletedChatId) => {
             try {
                 const result = await cleanDeletedChatRecords(String(deletedChatId || ''));
@@ -12661,6 +12664,8 @@ RULES:
         $('#rpg_tracker_btn_clear').on('click', function () {
             if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
                 settings.currentMemo = "";
+                // Explicit wipe: let the empty tracker replace this chat's saved memo.
+                if (runtimeState.currentChatId && settings.chatStates?.[runtimeState.currentChatId]) settings.chatStates[runtimeState.currentChatId].currentMemo = '';
                 settings.prevMemo1 = "";
                 settings.prevMemo2 = "";
                 settings.memoHistory = [];

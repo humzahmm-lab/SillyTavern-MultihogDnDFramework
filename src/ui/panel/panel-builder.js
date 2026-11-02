@@ -7223,6 +7223,8 @@ ${namingRule}`;
     panel.querySelector('#rpg-tracker-memo-clear').addEventListener('click', () => {
         if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
             settings.currentMemo = "";
+            // Explicit wipe: let the empty tracker replace this chat's saved memo.
+            if (runtimeState.currentChatId && settings.chatStates?.[runtimeState.currentChatId]) settings.chatStates[runtimeState.currentChatId].currentMemo = '';
             settings.prevMemo1 = "";
             settings.prevMemo2 = "";
             clearMemoAndMapHistory(settings);

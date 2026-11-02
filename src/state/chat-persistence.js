@@ -480,6 +480,14 @@ export function saveChatState(chatId, opts = {}) {
     }
     const s = getSettings();
     if (!s.chatStates) s.chatStates = {};
+    // Never replace a chat's saved tracker memo with an empty one. An empty live
+    // memo while the partition has content means the state was not projected yet.
+    const savedPart = s.chatStates[chatId];
+    if (savedPart && String(savedPart.currentMemo || '').trim() && !String(s.currentMemo || '').trim()
+        && !opts.allowEmptyMemo) {
+        console.warn('[RPG Tracker] Skipped saving an empty tracker over saved chat state:', chatId);
+        return;
+    }
     // This stamp belongs to the specific chat snapshot. The top-level timestamp is
     // shared by every chat, so it cannot safely decide whether this chat's disk memo
     // is newer than a browser-local recovery snapshot.
